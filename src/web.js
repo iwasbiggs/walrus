@@ -20,10 +20,10 @@ function StaticFileHandler(fullPath, mimeType) {
   };
 }
 
-function CallbackHandler(callback) {
+function CallbackHandler(request, callback) {
   return {
     serve: function(response) {
-      callback('a visitor', function(result) {
+      callback(request, function(result) {
         response.writeHead(
           result.responseCode, {"Content-Type": 'application/json'});
         response.end(JSON.stringify(result.data));
@@ -45,28 +45,28 @@ function WebHost(baseDirectory) {
   var staticPaths = {};
   var callbackPaths = {};
 
-  function determineHandler(parsedRequest, requestMethod) {
+  function determineHandler(request) {
+    var parsedRequest = url.parse(request.url);
+    var requestMethod = request.method;
     var pathName = parsedRequest.pathname;
     var callbackHandler = callbackPaths[pathName];
     var staticHandler = staticPaths[pathName];
     var connection;
 
     console.log(requestMethod + ': ' + pathName);
-
     if (staticHandler && requestMethod === 'GET') {
       connection = StaticFileHandler(
           path.join(baseDirectory, staticHandler.relativePath),
           staticHandler.mimeType);
     } else if (callbackHandler &&
         callbackHandler.supportedMethod === requestMethod) {
-      connection = CallbackHandler(callbackHandler.callback);
+      connection = CallbackHandler(request, callbackHandler.callback);
     }
     return connection;
   }
 
   function handleConnection(request, response) {
-    var connection =
-      determineHandler(url.parse(request.url), request.method) || DefaultHandler();
+    var connection = determineHandler(request) || DefaultHandler();
     connection.serve(response);
   }
 
