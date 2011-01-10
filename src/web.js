@@ -24,9 +24,14 @@ function CallbackHandler(request, callback) {
   return {
     serve: function(response) {
       callback(request, function(result) {
+        var mimeType = result.mimeType || 'application/json';
         response.writeHead(
-          result.responseCode, {"Content-Type": 'application/json'});
-        response.end(JSON.stringify(result.data));
+          result.responseCode, {"Content-Type": mimeType});
+        if (mimeType === 'application/json') {
+          response.end(JSON.stringify(result.data));
+        } else {
+          response.end(result.data);
+        }
       });
     }
   };
@@ -72,6 +77,9 @@ function WebHost(baseDirectory) {
 
   return {
     addCallbackHandler: function(callbackParams) {
+      if (!callbackParams.supportedMethod) {
+        throw new Error('supportedMethod not found!');
+      }
       var endPoints = callbackParams.endPoints;
       var callback = callbackParams.callback;
       var supportedMethod = callbackParams.supportedMethod;

@@ -28,6 +28,11 @@ var Core = (function Core() {
         supportedMethod: 'GET',
         callback: walrus.download
       });
+      webServer.addCallbackHandler({
+        endPoints: ['/view', '/v1/view'],
+        supportedMethod: 'GET',
+        callback: walrus.view
+      });
       webServer.run(process.env.PORT || 8001);
     }
   };

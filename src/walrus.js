@@ -1,23 +1,30 @@
 
+var formidable = require('formidable');
+var fs = require('fs');
+
 var MAX_SIZE_PER_FILE = 5 * 1024 * 1024;
 
-function StoredFile() {
-  var chunks = [];
+function StoredFile(fileData) {
   var age = Date.now();
   
   return {
-    addBuffer: function(chunk) {
-      chunks.push(chunk);
+    remove: function() {
+      fs.unlinkSync(fileData.path);
     },
-    getBuffer: function(index) {
-      return chunks[index];
-    },
-    size: function() {
-      var total = 0;
-      chunks.forEach(function(chunk) {
-        total += chunk.length;
+    getData: function(done) {
+      fs.readFile(fileData.path, function(err, data) {
+        if (err) {
+          done('');
+        } else {
+          done(data);
+        }
       });
-      return total;
+    },
+    getLength: function() {
+      return fileData.length;
+    },
+    getMimeType: function() {
+      return fileData.mime;
     }
   };
 }
@@ -50,34 +57,46 @@ var Walrus = (function Walrus() {
       });
     },
     upload: function(request, done) {
-      console.log('got an upload.' + JSON.stringify(request.headers));
-      var file = StoredFile();
-
-      function stopUpload(finalSay) {
-        request.removeAllListeners('data');
-        request.removeAllListeners('end');
-        done(finalSay);
-      }
-
-      request.on('data', function(chunk) {
-        console.log('got data chunk.' + chunk.length);
-        if (file.size() + chunk.length > MAX_SIZE_PER_FILE) {
-          stopUpload({
-            responseCode: 501,
-            data: {error: 'File was too large.'}
-          });
+      var form = new formidable.IncomingForm();
+      form.parse(request, function(err, fields, files) {
+        var fileData = files.fileData;
+        if (!fileData) {
+          done({responseCode: 501, data: {error: 'fileData not uploaded.'}});
+        } else if (fileData.length > MAX_SIZE_PER_FILE) {
+          done({responseCode: 501, data: {error: 'fileData too large.'}});
         } else {
-          file.addBuffer(chunk);
+          console.log('recorded upload: ' + fileData.path);
+          done({
+            responseCode: 200,
+            data: {id: addFileToCache(StoredFile(fileData))}
+          });
         }
       });
-      request.on('end', function() {
-        console.log('end of data, file size: ' + file.size());
-        var id = addFileToCache(file);
-        stopUpload({responseCode: 200, data: {id: id}});
-        var fs = require('fs');
-        fs.writeFileSync('/tmp/one', file.getBuffer(0));
-        fs.writeFileSync('/tmp/two', file.getBuffer(1));
-      });
+    },
+    view: function(request, done) {
+      var query = require('querystring').parse(
+          require('url').parse(request.url).query);
+      var id = query.id;
+      var storedFile = files[id];
+      if (id === undefined) {
+        done({
+          responseCode: 501,
+          data: {error: 'id not found in request'}
+        });
+      } else if (!storedFile) {
+        done({
+          responseCode: 404,
+          data: {error: 'No file with that id'}
+        });
+      } else {
+        storedFile.getData(function(wholeFile) {
+          done({
+            responseCode: 200,
+            mimeType: storedFile.getMimeType(),
+            data: wholeFile
+          });
+        });
+      }
     }
   };
 }());
@@ -85,4 +104,5 @@ var Walrus = (function Walrus() {
 exports.download = Walrus.download;
 exports.list = Walrus.list;
 exports.upload = Walrus.upload;
+exports.view = Walrus.view;
 
