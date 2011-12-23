@@ -7,3 +7,18 @@ use restful API.
 Walrus is licensed under the Apache License, Version 2.0
 (http://www.apache.org/licenses/LICENSE-2.0.html).
 
+Sample usage
+=====
+
+Start a server:
+node server.js
+
+Upload a file to the server:
+$ echo sample > file.txt
+$ curl [host]:8001/upload --form fileData=@file.txt
+{"id":1}
+
+View a file from the server:
+$ curl [host]:8001/view?id=1
+sample
+
